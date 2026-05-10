@@ -1,0 +1,22 @@
+# ── Core (already installed) ───────────────────────────────────────────────────
+faster-whisper>=1.0.0
+sounddevice>=0.4.6
+numpy>=1.24.0
+ollama>=0.3.0
+
+# ── UI ─────────────────────────────────────────────────────────────────────────
+pystray>=0.19.5          # system tray icon
+Pillow>=10.0.0           # icon generation, OCR pre-processing
+
+# ── Slide OCR ──────────────────────────────────────────────────────────────────
+mss>=9.0.1               # fast multi-monitor screenshots (Windows)
+pytesseract>=0.3.10      # OCR wrapper (requires Tesseract binary — see README)
+# NOTE: download Tesseract for Windows from:
+#   https://github.com/UB-Mannheim/tesseract/wiki
+# Default install path: C:\Program Files\Tesseract-OCR\tesseract.exe
+
+# ── Hotkeys ────────────────────────────────────────────────────────────────────
+keyboard>=0.13.5         # global hotkey (F9) — may need admin on some systems
+
+# ── Browser detection ──────────────────────────────────────────────────────────
+pywin32>=306             # win32gui for active window title (Windows only)
