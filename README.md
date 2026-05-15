@@ -40,7 +40,7 @@ The script auto-detects loopback devices. To enable one:
 1. Download from https://vb-audio.com/Cable/ (free)
 2. Install and restart
 3. Set your browser's audio output to "CABLE Input"
-4. The script will auto-detect "CABLE Output"
+4. In the session dialog, select **CABLE Output (VB-Audio Point)** as the audio device
 
 ### 3. Run Setup & Launch
 
