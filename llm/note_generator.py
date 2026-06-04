@@ -24,6 +24,7 @@ class NoteGenerator:
     def generate(
         self,
         chunks:          list[TranscriptChunk],
+        slide_captures:  list                            = None,
         domain:          str                             = Domain.GENERAL,
         stream_callback: Optional[Callable[[str], None]] = None,
     ) -> str:
@@ -34,7 +35,7 @@ class NoteGenerator:
         - Chooses single-pass for short sessions, chunked-merge for long ones.
         - stream_callback receives tokens as they stream out of Ollama.
         """
-        full_text  = self._inject_ocr(chunks)
+        full_text  = self._inject_ocr(chunks, slide_captures or [])
         word_count = len(full_text.split())
 
         print(f"\n[Notes] {word_count:,} words, {len(chunks)} chunks, domain={domain}")
@@ -49,14 +50,38 @@ class NoteGenerator:
 
     # ── Private helpers ────────────────────────────────────────────────────────
 
-    def _inject_ocr(self, chunks: list[TranscriptChunk]) -> str:
-        """Assemble transcript text, inserting slide OCR at the chunk boundary."""
-        parts = []
+    def _inject_ocr(self, chunks: list[TranscriptChunk], slide_captures: list) -> str:
+        """
+        Assemble the transcript, interleaving manual slide captures by wall-clock
+        time.  Each slide gets a [SCREENSHOT:filename] marker so the LLM can echo
+        it back as <!-- SCREENSHOT:filename --> for later post-processing.
+        """
+        events: list[tuple] = []
         for c in chunks:
-            if c.ocr_text and c.ocr_text.strip():
-                parts.append(f"[SLIDE: {c.ocr_text.strip()}]")
-            flag = " [uncertain]" if c.is_uncertain else ""
-            parts.append(f"[{c.wall_clock.strftime('%H:%M:%S')}]{flag} {c.text}")
+            events.append(("chunk", c.wall_clock, c))
+        for s in slide_captures:
+            events.append(("slide", s.wall_clock, s))
+        events.sort(key=lambda e: e[1])
+
+        parts = []
+        for kind, _, obj in events:
+            if kind == "slide":
+                lines = [f"[SCREENSHOT:{obj.image_path.name}]"]
+                if obj.ocr_text and obj.ocr_text.strip():
+                    lines.append(f"[SLIDE: {obj.ocr_text.strip()}]")
+                parts.append("\n".join(lines))
+            else:
+                # legacy auto-capture path (OCR_ENABLED=True)
+                if obj.ocr_image_path:
+                    lines = [f"[SCREENSHOT:{obj.ocr_image_path.name}]"]
+                    if obj.ocr_text and obj.ocr_text.strip():
+                        lines.append(f"[SLIDE: {obj.ocr_text.strip()}]")
+                    parts.append("\n".join(lines))
+                elif obj.ocr_text and obj.ocr_text.strip():
+                    parts.append(f"[SLIDE: {obj.ocr_text.strip()}]")
+                flag = " [uncertain]" if obj.is_uncertain else ""
+                parts.append(f"[{obj.wall_clock.strftime('%H:%M:%S')}]{flag} {obj.text}")
+
         return "\n\n".join(parts)
 
     def _single_pass(

@@ -92,6 +92,7 @@ Rules:
 - Use the exact terminology from the transcript; do not paraphrase technical terms.
 - Do not pad with filler or generic advice.
 - If slide text is embedded as [SLIDE: ...], treat it as supplementary context.
+- If you encounter a [SCREENSHOT:filename] marker, output <!-- SCREENSHOT:filename --> verbatim on its own line at the relevant point in your notes.
 - Flag any [uncertain] transcript sections with a ⚠️ note.
 - Aim for depth over brevity — a thorough set of notes is the goal.
 
@@ -117,6 +118,9 @@ Extract detailed points from this section. Use two levels of bullets:
 Cover: new concepts and their definitions, procedures and their steps, commands and \
 flags, configuration details, concrete examples, and any terms that are mentioned \
 but not explained (tag these with [NEEDS EXPLANATION]).
+
+If you encounter a [SCREENSHOT:filename] marker, output <!-- SCREENSHOT:filename --> \
+verbatim on its own line at the relevant point.
 
 Do NOT write a final summary yet — structured bullet points only.
 
@@ -159,6 +163,9 @@ Practical takeaways with the reasoning behind each item.
 ## Questions to Explore
 Gaps or related topics worth researching further. For each, add one sentence on why \
 it matters.
+
+Rules:
+- If you encounter a [SCREENSHOT:filename] marker in the source points, output <!-- SCREENSHOT:filename --> verbatim on its own line at the relevant point in the final notes.
 
 EXTRACTED POINTS FROM ALL SECTIONS:
 {combined_points}

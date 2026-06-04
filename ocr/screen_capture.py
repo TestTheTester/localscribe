@@ -7,6 +7,7 @@ import hashlib
 import queue
 import threading
 import time
+from pathlib import Path
 from typing import Optional
 
 try:
@@ -83,14 +84,17 @@ class ScreenCaptureWorker:
     def __init__(
         self,
         state,
-        ocr_func,           # Callable[[PIL.Image], str]
-        interval:  float    = OCR_INTERVAL_SECONDS,
-        threshold: float    = OCR_CHANGE_THRESHOLD,
+        ocr_func,                           # Callable[[PIL.Image], str]
+        interval:   float    = OCR_INTERVAL_SECONDS,
+        threshold:  float    = OCR_CHANGE_THRESHOLD,
+        slides_dir: Optional[Path] = None,  # Where to save slide screenshots
     ) -> None:
-        self.state     = state
-        self.ocr_func  = ocr_func
-        self.interval  = interval
-        self.threshold = threshold
+        self.state      = state
+        self.ocr_func   = ocr_func
+        self.interval   = interval
+        self.threshold  = threshold
+        self.slides_dir = slides_dir
+        self._slide_counter = 0
         self._thread: Optional[threading.Thread] = None
 
     def start(self) -> threading.Thread:
@@ -129,9 +133,18 @@ class ScreenCaptureWorker:
                 try:
                     text = self.ocr_func(img)
                     if text and text.strip():
-                        # Non-blocking put — drop if queue is full
+                        image_path: Optional[Path] = None
+                        if self.slides_dir:
+                            self._slide_counter += 1
+                            image_path = self.slides_dir / f"slide_{self._slide_counter:03d}.png"
+                            try:
+                                img.save(str(image_path))
+                            except Exception as e:
+                                print(f"[OCR] Failed to save slide image: {e}")
+                                image_path = None
+
                         try:
-                            self.state.ocr_queue.put_nowait(text.strip())
+                            self.state.ocr_queue.put_nowait((text.strip(), image_path))
                         except queue.Full:
                             pass
                 except Exception as e:

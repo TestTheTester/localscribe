@@ -7,6 +7,7 @@ import queue
 import threading
 import datetime
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -23,13 +24,21 @@ class TranscriptChunk:
     wall_clock: datetime.datetime
     confidence: float           # 0.0–1.0 derived from avg_logprob
     is_uncertain: bool          # confidence < CONFIDENCE_THRESHOLD
-    ocr_text: Optional[str]     # Slide text captured near this chunk, if any
+    ocr_text: Optional[str]        # Slide text captured near this chunk, if any
+    ocr_image_path: Optional[Path] = None  # Saved screenshot for that slide
 
     def formatted(self) -> str:
         ts    = self.wall_clock.strftime("%H:%M:%S")
         flag  = " [uncertain]" if self.is_uncertain else ""
         slide = f"\n  [SLIDE] {self.ocr_text}" if self.ocr_text else ""
         return f"[{ts}]{flag} {self.text}{slide}"
+
+
+@dataclass
+class SlideCapture:
+    wall_clock: datetime.datetime
+    image_path: Path
+    ocr_text:   Optional[str] = None
 
 
 @dataclass
@@ -54,13 +63,17 @@ class AppState:
         self.pause_event  = threading.Event()   # Set → capture is paused
 
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue()
-        self.ocr_queue:   queue.Queue[str]         = queue.Queue(maxsize=8)
+        self.ocr_queue:   queue.Queue[tuple[str, Optional[Path]]] = queue.Queue(maxsize=8)
 
         # ── Session data (protected by _chunks_lock) ───────────────────────────
-        self._chunks_lock: threading.Lock              = threading.Lock()
-        self._chunks:      list[TranscriptChunk]       = []
-        self.session_meta: Optional[SessionMeta]       = None
-        self.final_notes:  str                         = ""
+        self._chunks_lock:  threading.Lock              = threading.Lock()
+        self._chunks:       list[TranscriptChunk]       = []
+        self.session_meta:  Optional[SessionMeta]       = None
+        self.final_notes:   str                         = ""
+
+        # ── Manual slide captures (protected by _slides_lock) ─────────────────
+        self._slides_lock:    threading.Lock         = threading.Lock()
+        self._slide_captures: list[SlideCapture]     = []
 
         # ── Tray state (protected by _state_lock) ─────────────────────────────
         self._state_lock: threading.Lock = threading.Lock()
@@ -101,9 +114,20 @@ class AppState:
     def clear_chunks(self) -> None:
         with self._chunks_lock:
             self._chunks.clear()
-        # Also clear queues
+        with self._slides_lock:
+            self._slide_captures.clear()
         self.audio_queue = queue.Queue()
         self.ocr_queue   = queue.Queue(maxsize=8)
+
+    # ── Slide captures ─────────────────────────────────────────────────────────
+
+    def add_slide_capture(self, capture: "SlideCapture") -> None:
+        with self._slides_lock:
+            self._slide_captures.append(capture)
+
+    def get_slide_captures(self) -> "list[SlideCapture]":
+        with self._slides_lock:
+            return list(self._slide_captures)
 
     # ── Convenience properties ─────────────────────────────────────────────────
 

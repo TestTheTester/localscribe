@@ -167,7 +167,10 @@ def main() -> None:
     print("[Main] System tray icon running. Right-click to start a session.")
 
     # ── Register global hotkeys ────────────────────────────────────────────────
-    register_hotkeys(on_pause_resume=ctrl.toggle_pause)
+    register_hotkeys(
+        on_pause_resume  = ctrl.toggle_pause,
+        on_capture_slide = ctrl.capture_slide,
+    )
 
     # ── Handle window close (root is hidden but still has a WM) ───────────────
     root.protocol("WM_DELETE_WINDOW", lambda: _shutdown(root, ctrl))

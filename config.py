@@ -29,10 +29,11 @@ MAX_WORDS_PER_CHUNK  = 6000    # ~8k tokens; chunked strategy triggered above th
 CONFIDENCE_THRESHOLD = 0.45   # Chunks below this are flagged [uncertain]
 # avg_logprob → confidence mapping: clamped linear from [-2, 0] → [0, 1]
 
-# ── Slide OCR ──────────────────────────────────────────────────────────────────
-OCR_ENABLED          = True
-OCR_INTERVAL_SECONDS = 8.0     # Seconds between screenshot grabs
-OCR_CHANGE_THRESHOLD = 0.04    # Fraction of pixels that must differ to trigger OCR
+# ── Slide capture ──────────────────────────────────────────────────────────────
+SLIDE_CAPTURE_KEY    = "F10"   # Hotkey to manually capture a slide screenshot
+OCR_ENABLED          = False   # Auto continuous screen capture (disabled; use F10 instead)
+OCR_INTERVAL_SECONDS = 8.0     # Seconds between auto screenshot grabs (if OCR_ENABLED=True)
+OCR_CHANGE_THRESHOLD = 0.04    # Fraction of pixels that must differ to trigger auto OCR
 PREFER_VISION_OCR    = False   # True = use Ollama vision instead of pytesseract
 
 # ── Browser polling ────────────────────────────────────────────────────────────

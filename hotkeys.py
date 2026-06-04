@@ -1,9 +1,12 @@
 """
 hotkeys.py — Global keyboard hotkeys via the `keyboard` library.
 F9  →  toggle pause/resume for the active session.
+F10 →  capture a slide screenshot (manual trigger).
 """
 
 from typing import Callable, Optional
+
+from config import SLIDE_CAPTURE_KEY
 
 try:
     import keyboard
@@ -14,24 +17,31 @@ except ImportError:
 _registered: bool = False
 
 
-def register_hotkeys(on_pause_resume: Callable) -> None:
+def register_hotkeys(
+    on_pause_resume:  Callable,
+    on_capture_slide: Optional[Callable] = None,
+) -> None:
     """
-    Bind F9 globally.  Safe to call multiple times — re-registers once.
+    Bind F9 (pause/resume) and F10 (capture slide) globally.
+    Safe to call multiple times — re-registers once.
     Falls back gracefully if `keyboard` is not installed.
     """
     global _registered
     if not KEYBOARD_AVAILABLE:
-        print("[Hotkeys] `keyboard` package not installed — F9 hotkey disabled.")
+        print("[Hotkeys] `keyboard` package not installed — hotkeys disabled.")
         return
     if _registered:
         return
     try:
         keyboard.add_hotkey("F9", on_pause_resume, suppress=False)
         print("[Hotkeys] F9 → pause/resume registered.")
+        if on_capture_slide:
+            keyboard.add_hotkey(SLIDE_CAPTURE_KEY, on_capture_slide, suppress=False)
+            print(f"[Hotkeys] {SLIDE_CAPTURE_KEY} → capture slide registered.")
         _registered = True
     except Exception as e:
-        print(f"[Hotkeys] Could not register F9: {e}")
-        print("         Try running as Administrator if F9 doesn't respond.")
+        print(f"[Hotkeys] Could not register hotkeys: {e}")
+        print("         Try running as Administrator if hotkeys don't respond.")
 
 
 def unregister_hotkeys() -> None:

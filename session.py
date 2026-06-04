@@ -16,7 +16,7 @@ from config import (
     OUTPUT_DIR, TrayState, OCR_ENABLED, PREFER_VISION_OCR,
     ANKI_MAX_CARDS, ANKI_DECK_NAME,
 )
-from app_state import AppState, SessionMeta
+from app_state import AppState, SessionMeta, SlideCapture
 from audio.capture import build_input_stream, find_loopback_device
 from audio.transcriber import transcription_worker
 from browser.window_detector import WindowPollerWorker
@@ -62,6 +62,7 @@ class SessionController:
         self._browser_worker:     Optional[WindowPollerWorker] = None
         self._chunk_counter       = itertools.count(1)
 
+        self._slides_dir: Optional[Path]          = None
         self._qa_session:   Optional[QASession]   = None
         self._chat_window:  Optional["ChatWindow"] = None
         self._lock = threading.Lock()
@@ -97,9 +98,18 @@ class SessionController:
         )
         self._transcriber_thread.start()
 
-        # ── Slide OCR worker ───────────────────────────────────────────────────
+        # ── Slides folder (used by both manual F10 capture and auto OCR) ────────
+        date_str    = self.state.session_meta.started_at.strftime("%Y-%m-%d")
+        safe_course = "".join(
+            c if c.isalnum() or c in " _-" else "_"
+            for c in (course or "session")
+        ).strip()[:60]
+        self._slides_dir = OUTPUT_DIR / date_str / safe_course / "slides"
+        self._slides_dir.mkdir(parents=True, exist_ok=True)
+
+        # ── Slide OCR worker (auto continuous capture — off by default) ────────
         if enable_ocr and OCR_ENABLED:
-            self._start_ocr_worker()
+            self._start_ocr_worker(slides_dir=self._slides_dir)
 
         # ── Browser title poller ───────────────────────────────────────────────
         self._browser_worker = WindowPollerWorker(
@@ -113,7 +123,7 @@ class SessionController:
                                f"Recording: {self.state.session_meta.course_title}")
         print(f"[Session] Started: {course} ({domain})")
 
-    def _start_ocr_worker(self) -> None:
+    def _start_ocr_worker(self, slides_dir=None) -> None:
         try:
             from ocr.screen_capture import ScreenCaptureWorker
             from ocr.ocr_engine import extract_slide_text, is_tesseract_available
@@ -136,7 +146,7 @@ class SessionController:
             def _ocr_func(img):
                 return extract_slide_text(img, self.ollama_client, PREFER_VISION_OCR)
 
-            worker = ScreenCaptureWorker(self.state, _ocr_func)
+            worker = ScreenCaptureWorker(self.state, _ocr_func, slides_dir=slides_dir)
             self._ocr_thread = worker.start()
         except Exception as e:
             print(f"[Session] OCR worker failed to start: {e}")
@@ -146,6 +156,46 @@ class SessionController:
         if self.state.session_meta and not self.state.session_meta.course_title:
             self.state.session_meta.course_title = course
         print(f"[Session] Browser: course='{course}' domain='{domain}'")
+
+    # ── Manual slide capture (F10) ─────────────────────────────────────────────
+
+    def capture_slide(self) -> None:
+        """Called from the F10 hotkey — fire-and-forget on a daemon thread."""
+        if self.state.get_tray_state() not in (TrayState.RECORDING, TrayState.PAUSED):
+            return
+        threading.Thread(target=self._do_capture_slide, name="SlideCapture", daemon=True).start()
+
+    def _do_capture_slide(self) -> None:
+        from ocr.screen_capture import capture_primary_screen
+        from ocr.ocr_engine import extract_slide_text
+
+        img = capture_primary_screen()
+        if img is None:
+            print("[Slide] Screenshot failed.")
+            return
+
+        ts         = datetime.datetime.now()
+        image_path = self._slides_dir / f"slide_{ts.strftime('%H%M%S')}.png"
+        try:
+            img.save(str(image_path))
+        except Exception as e:
+            print(f"[Slide] Could not save image: {e}")
+            return
+
+        ocr_text = None
+        try:
+            ocr_text = extract_slide_text(img, self.ollama_client, PREFER_VISION_OCR)
+        except Exception:
+            pass
+
+        self.state.add_slide_capture(SlideCapture(
+            wall_clock = ts,
+            image_path = image_path,
+            ocr_text   = ocr_text,
+        ))
+        label = f"{image_path.name}" + (f" — {ocr_text[:60]}" if ocr_text else "")
+        print(f"[Slide] Captured: {label}")
+        self.tray.notify("Slide captured", image_path.name)
 
     # ── Pause / resume ─────────────────────────────────────────────────────────
 
@@ -219,8 +269,9 @@ class SessionController:
         notes = ""
         try:
             notes = self._note_gen.generate(
-                chunks = chunks,
-                domain = meta.domain if meta else "general",
+                chunks          = chunks,
+                slide_captures  = self.state.get_slide_captures(),
+                domain          = meta.domain if meta else "general",
                 stream_callback = lambda t: print(t, end="", flush=True),
             )
             self.state.final_notes = notes
@@ -232,10 +283,11 @@ class SessionController:
         export_paths: dict[str, Path] = {}
         try:
             export_paths = obsidian_export(
-                session_meta = meta,
-                notes        = notes,
-                chunks       = chunks,
-                base_dir     = OUTPUT_DIR,
+                session_meta   = meta,
+                notes          = notes,
+                chunks         = chunks,
+                slide_captures = self.state.get_slide_captures(),
+                base_dir       = OUTPUT_DIR,
             )
         except Exception as e:
             print(f"[Session] Obsidian export failed: {e}")
