@@ -5,13 +5,15 @@ Automatically chooses strategy based on transcript word count.
 
 from typing import Callable, Optional
 
-from config import MAX_WORDS_PER_CHUNK, Domain
+from config import MAX_WORDS_PER_CHUNK, Domain, REVIEW_MODEL, ENABLE_NOTE_REVIEW
 from app_state import TranscriptChunk
 from llm.ollama_client import OllamaClient
 from llm.prompts import (
     build_summary_prompt,
     build_chunk_summary_prompt,
     build_merge_prompt,
+    build_review_prompt,
+    build_revision_prompt,
 )
 
 
@@ -42,13 +44,46 @@ class NoteGenerator:
 
         if word_count <= MAX_WORDS_PER_CHUNK:
             print("[Notes] Strategy: single-pass")
-            return self._single_pass(full_text, domain, stream_callback)
+            draft = self._single_pass(full_text, domain, stream_callback)
         else:
             total_parts = -(-word_count // MAX_WORDS_PER_CHUNK)   # ceiling division
             print(f"[Notes] Strategy: chunked-merge ({total_parts} parts)")
-            return self._chunked_merge(full_text, domain, total_parts, stream_callback)
+            draft = self._chunked_merge(full_text, domain, total_parts, stream_callback)
+
+        if ENABLE_NOTE_REVIEW:
+            return self._review_and_revise(draft, domain, stream_callback)
+        return draft
 
     # ── Private helpers ────────────────────────────────────────────────────────
+
+    def _review_and_revise(
+        self,
+        draft:           str,
+        domain:          str,
+        stream_callback: Optional[Callable[[str], None]],
+    ) -> str:
+        print(f"\n[Review] Sending notes to {REVIEW_MODEL} for critique...\n" + "─" * 60)
+        review = self.client.chat_with_model(
+            model=REVIEW_MODEL,
+            prompt=build_review_prompt(draft, domain),
+            ctx=16384,
+            temperature=0.2,
+            stream_callback=lambda t: print(t, end="", flush=True),
+        )
+        print("\n" + "─" * 60)
+
+        if "no issues" in review.strip().lower()[:50]:
+            print("[Review] No issues found — keeping original notes.")
+            return draft
+
+        print(f"[Review] Critique received. Sending back to {self.client.model} for revision...\n" + "─" * 60)
+        revised = self.client.chat(
+            build_revision_prompt(draft, review, domain),
+            ctx=32768,
+            stream_callback=stream_callback,
+        )
+        print("\n" + "─" * 60)
+        return revised
 
     def _inject_ocr(self, chunks: list[TranscriptChunk], slide_captures: list) -> str:
         """

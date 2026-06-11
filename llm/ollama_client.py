@@ -124,6 +124,32 @@ class OllamaClient:
         except Exception as e:
             raise OllamaConnectionError(f"Ollama chat failed: {e}") from e
 
+    def chat_with_model(
+        self,
+        model: str,
+        prompt: str,
+        ctx: int = 8192,
+        temperature: float = 0.3,
+        stream_callback: Optional[Callable[[str], None]] = None,
+    ) -> str:
+        """Like chat(), but uses an explicit model name instead of self.model."""
+        try:
+            response = ollama.chat(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                options={"temperature": temperature, "num_ctx": ctx},
+                stream=True,
+            )
+            result = ""
+            for chunk in response:
+                token = chunk["message"]["content"]
+                result += token
+                if stream_callback:
+                    stream_callback(token)
+            return result
+        except Exception as e:
+            raise OllamaConnectionError(f"Ollama chat failed (model={model}): {e}") from e
+
     def chat_messages(
         self,
         messages: list[dict],

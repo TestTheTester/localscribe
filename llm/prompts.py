@@ -173,6 +173,61 @@ EXTRACTED POINTS FROM ALL SECTIONS:
 Respond in clean Markdown. Start with ## Summary."""
 
 
+# ── Note review & revision prompts ────────────────────────────────────────────
+
+def build_review_prompt(notes: str, domain: str = Domain.GENERAL) -> str:
+    return f"""You are a rigorous quality reviewer for technical study notes.{_domain_block(domain)}
+Below is a draft set of notes generated from a training video transcript. \
+Your job is to critique them — NOT to rewrite them.
+
+Check for:
+1. **Completeness** — are any major concepts, steps, or terms likely missing or only half-explained?
+2. **Clarity** — are any explanations vague, ambiguous, or hard to follow without prior knowledge?
+3. **Structure** — does the output follow the required Markdown sections? \
+   (## Summary, ## Key Concepts, ## Important Details, ## Extended Concepts, \
+   ## Action Items / Things to Remember, ## Questions to Explore)
+4. **Technical accuracy** — within the notes themselves, are there any obvious factual errors \
+   or contradictions?
+
+Output a numbered list of specific, actionable critique items. Each item must identify \
+the section it refers to and describe exactly what is wrong or missing. \
+Do NOT rewrite sections — only list problems.
+
+If the notes are thorough and correct, respond with exactly: NO ISSUES
+
+DRAFT NOTES:
+{notes}
+---
+List your critique items now (or respond NO ISSUES):"""
+
+
+def build_revision_prompt(
+    notes: str,
+    review: str,
+    domain: str = Domain.GENERAL,
+) -> str:
+    return f"""You are an expert technical note-taker and educator.{_domain_block(domain)}
+Below are draft notes from a training video, followed by a critique from a peer reviewer. \
+Produce a revised, final version of the notes that addresses every critique item.
+
+Rules:
+- Follow the same Markdown structure as the draft \
+  (## Summary, ## Key Concepts, ## Important Details, ## Extended Concepts, \
+  ## Action Items / Things to Remember, ## Questions to Explore).
+- Preserve all <!-- SCREENSHOT:filename --> markers verbatim at their original positions.
+- Use the exact terminology from the draft; do not paraphrase technical terms.
+- Do not remove content that was correct — only fix what the reviewer flagged.
+- Do not add padding or filler.
+
+DRAFT NOTES:
+{notes}
+
+REVIEWER CRITIQUE:
+{review}
+---
+Respond with the complete revised notes in clean Markdown. Start with ## Summary."""
+
+
 # ── Anki flashcard generation ──────────────────────────────────────────────────
 
 def build_anki_prompt(

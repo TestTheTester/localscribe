@@ -18,7 +18,9 @@ WHISPER_COMPUTE    = "float16"      # float16 (GPU) | int8 (CPU)
 
 # ── Ollama ─────────────────────────────────────────────────────────────────────
 OLLAMA_MODEL        = "gemma3:12b"
-OLLAMA_VISION_MODEL = "llava:13b"   # Used for slide OCR when prefer_vision=True
+OLLAMA_VISION_MODEL = "qwen3.5:9b"   # Used for slide OCR when prefer_vision=True
+REVIEW_MODEL        = "qwen3.5:9b"  # Reviewer LLM (critiques the draft notes)
+ENABLE_NOTE_REVIEW  = True              # Set False to skip the review step
 
 # ── Output paths ───────────────────────────────────────────────────────────────
 OUTPUT_DIR    = Path.home() / "TrainingNotes"
